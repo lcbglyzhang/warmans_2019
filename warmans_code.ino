@@ -1,24 +1,146 @@
+
+const unsigned int forwardDuty = 3296;
+const unsigned int backDuty = 2636;
+const unsigned int stallDuty = 3000;
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200); 
   
-  pinMode(11, OUTPUT); //MotorA OC1A
+  pinMode(11, OUTPUT); //Motor1 OC1A
   output_compare_setup_motor1();
   
-  pinMode(5, OUTPUT);
+  pinMode(5, OUTPUT); // Motor2 OC3A
   output_compare_setup_motor2();
 
-  pinMode(6, OUTPUT);
+  pinMode(6, OUTPUT); // Motor3 OC4A
   output_compare_setup_motor3();
 
-  pinMode(46, OUTPUT);
+  pinMode(46, OUTPUT); // Motor4 OC5A
   output_compare_setup_motor4();
+
+  pinMode(44, OUTPUT); // ARM OC5C
+  output_compare_setup_arm();
 
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+//  forwards();
+//  backwards();
+//  left();
+//  rotate_clockwise();
+//  rotate_anticlockwise();
+//  arm_clockwise();
+//  arm_anticlockwise();
+}
+
+
+void forwards() {
+  setMotor1(backDuty);
+  setMotor2(forwardDuty);
+  setMotor3(backDuty);
+  setMotor4(forwardDuty);
+}
+
+void backwards() {
+  setMotor1(forwardDuty);
+  setMotor2(backDuty);
+  setMotor3(forwardDuty);
+  setMotor4(backDuty);  
+}
+
+void left() {
+  setMotor1(forwardDuty);
+  setMotor2(forwardDuty);
+  setMotor3(backDuty);
+  setMotor4(backDuty);  
+}
+
+void rotate_clockwise() {
+  setMotor1(backDuty);
+  setMotor2(backDuty);
+  setMotor3(backDuty);
+  setMotor4(backDuty);
+}
+
+void rotate_anticlockwise() {
+  setMotor1(forwardDuty);
+  setMotor2(forwardDuty);
+  setMotor3(forwardDuty);
+  setMotor4(forwardDuty);  
+}
+
+void rotate_180(int rotate_time) {
+  for (int i = 0; i < rotate_time; i++) {
+    setMotor1(forwardDuty);
+    setMotor2(forwardDuty);
+    setMotor3(forwardDuty);
+    setMotor4(forwardDuty);
+  }
+}
+
+void arm_clockwise() {
+  engageArm(); // Drive motors all stopped, PIN 44 OC5C connected  
+  setMotorArm(3038);
+}
+
+void arm_anticlockwise() {
+  engageArm();
+  setMotorArm(2958);
+}
+
+void setMotor1(unsigned int duty) {
+  OCR1A = duty;
+}
+
+void setMotor2(unsigned int duty) {
+  OCR3A = duty;
+}
+
+void setMotor3(unsigned int duty) {
+  OCR4A = duty;
+}
+
+void setMotor4(unsigned int duty) {
+  OCR5A = duty;
+}
+
+void setMotorArm(unsigned int duty) {
+  OCR5C = duty;
+}
+
+void engageArm() {
+  /* 
+   * Engage Arm function disengages OC5A PIN 46 MOTOR 4
+   * Engage Arm function engages OC5C PIN 44 ARM MOTOR
+   * Engage Arm function stops all drive motors
+   */
+   noInterrupts();
   
+   setMotor1(stallDuty);
+   setMotor2(stallDuty);
+   setMotor3(stallDuty);
+   setMotor4(stallDuty); 
+    
+   TCCR5A = 0b00001010; // Disable COM5A1:0, Enable COM5C1:0, Keep WGM
+
+   TIMSK5 = 0b00001000; // Disable OC5A interrupt Enable OC5C interrupt
+
+   interrupts();
+}
+
+void disengageArm() {
+  /* 
+   * Disengage Arm function engages OC5A PIN 46 MOTOR 4
+   * Disengage Arm function disengages OC5C PIN 44 ARM MOTOR
+   */
+   noInterrupts();
+
+   TCCR5A = 0b10000010; // Disable COM5A1:0, Enable COM5C1:0, Keep WGM
+
+   TIMSK5 = 0b00000010; // Enable OC5A interrupt Disable OC5C interrupt
+
+   interrupts();
 }
 
 ISR(TIMER1_COMPA_vect) {
@@ -37,6 +159,10 @@ ISR(TIMER5_COMPA_vect) {
   OC5A_ISR();
 }
 
+ISR(TIMER5_COMPC_vect) {
+  OC5C_ISR();
+}
+
 void OC1A_ISR() {
   //Serial.println("aaaa");
   TIFR1 |= (1 << OCF1A);
@@ -52,6 +178,10 @@ void OC4A_ISR() {
 
 void OC5A_ISR() {
   TIFR5 |= (1 << OCF5A);
+}
+
+void OC5C_ISR() {
+  TIFR5 |= (1 << OCF5C);
 }
 
 /* MOTOR1, PIN 11, OC1A */
@@ -84,7 +214,7 @@ void output_compare_setup_motor1() {
 
   ICR1 = 10000; // Setting the TOP of the signal, 5ms, 10000 cycles
 
-  OCR1A = 2800; // 
+  OCR1A = 3000; // 
 
   TIMSK1 |= (1 << OCIE1A); // Enable interrupts on compare nA
 
@@ -121,7 +251,7 @@ void output_compare_setup_motor2() {
 
   ICR3 = 10000; // Setting the TOP of the signal, 5ms, 10000 cycles
 
-  OCR3A = 3100; // 
+  OCR3A = 3000; // 
 
   TIMSK3 |= (1 << OCIE3A); // Enable interrupts on compare nA
 
@@ -195,9 +325,37 @@ void output_compare_setup_motor4() {
 
   ICR5 = 10000; // Setting the TOP of the signal, 5ms, 10000 cycles
 
-  OCR5A = 3200; // 
+  OCR5A = 3000; // 
 
   TIMSK5 |= (1 << OCIE5A); // Enable interrupts on compare nA
+
+  interrupts(); // Enable interrupts
+}
+
+/* ARM, PIN 44, OC5C */
+void output_compare_setup_arm() {
+  /*
+   * This function configures Timer Registers 1, 3, 4, 5 for output compare mode
+   * Desired PWM period is 5ms, duty cycle lasting 1 to 2ms, 1.5ms being neutral
+   * 16 MHz oscillator, Prescaler of 8
+   * Effective Timer Clock is 2 MHz, TCNT increments every 0.5 us
+   * 
+   * Desired PERIOD is 5ms, OR 10000 clock cycles
+   * Desired DUTY is 1ms to 2ms (2000 to 4000 cycles)
+   * NEUTRAL DUTY is 1.5ms (3000 cycles)
+   * 
+   * Timer n is set to Fast PWM mode
+   * 
+   */
+  noInterrupts(); // Disable interrupts
+  
+  // TCCR5A |= (1 << COM5C1);
+
+  // ICR5 = 10000; // Setting the TOP of the signal, 5ms, 10000 cycles
+
+  OCR5B = 3000; // 
+
+  // TIMSK5 |= (1 << OCIE5B); // Enable interrupts on compare nA
 
   interrupts(); // Enable interrupts
 }
